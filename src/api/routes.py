@@ -1,22 +1,76 @@
 """
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
-from flask import Flask, request, jsonify, url_for, Blueprint
+from flask import Flask, request, jsonify, url_for, Blueprint, redirect
 from api.models import db, User
 from api.utils import generate_sitemap, APIException
 from flask_cors import CORS
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from sqlalchemy import select, exc
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
 
+
+
+ph = PasswordHasher()
 api = Blueprint('api', __name__)
+
 
 # Allow CORS requests to this API
 CORS(api)
 
 
-@api.route('/login', methods=['POST', 'GET'])
+@api.route('/signup', methods=['POST'])
+def signup():
+    body = request.get_json()
+
+    if 'email' not in body or 'password' not in body:
+        return jsonify({'err':'Bad request or missing fields'}), 401
+
+
+    search_user = select(User).where(User.email == body['email'])
+    alredy_exist = db.session.execute(search_user).scalar_one_or_none()
+
+    if alredy_exist:
+        return jsonify({'err': 'user alredy exists'}), 401
+
+    try:
+        hashed_password = ph.hash(body['password'])
+    except Exception as e:
+        return jsonify({'error': 'Failed to hash password'}), 500
+
+    user = User()
+    user.email = body['email']
+    user.password = hashed_password
+    db.session.add(user)
+    db.session.commit()
+
+    return jsonify({'Ok': "User created"}), 200
+
+
+@api.route('/login', methods=['POST'])
 def login():
+    body = request.get_json()
 
-    response_body = {
-        "message": "Hello! I'm a message that came from the backend, check the network tab on the google inspector and you will see the GET request"
-    }
+    if 'email' not in body and 'password' not in body:
+        return jsonify({'err':'Bad request'}), 400
+    email = body['email']
+    password = body['password']
 
-    return jsonify(response_body), 200
+    user = User.query.filter_by(email=email).first()
+
+    if user is None:
+        return jsonify({'err': 'user not exist'}), 401
+    try:
+        ph.verify(user.password, password)
+    except VerifyMismatchError:
+        return jsonify({'err': 'Invalid password'}), 401
+    except Exception:
+        return jsonify({'err': 'Error verifying password'}), 500
+
+    token = create_access_token(identity=str(user.id))
+    is_admin = user.email == 'admin@admin.com'
+
+    return jsonify({'token': token,
+                    'is_admin': is_admin
+                    }), 200
