@@ -13,9 +13,9 @@ class User(db.Model):
     email: Mapped[str] = mapped_column(
         String(120), unique=True, nullable=False)
     password: Mapped[str] = mapped_column(nullable=False)
-    name: Mapped[str] = mapped_column(nullable=False)
-    last_name: Mapped[str] = mapped_column(nullable=False)
-    image: Mapped[str] = mapped_column(String(200), nullable=False)
+    name: Mapped[str] = mapped_column(nullable=True)
+    last_name: Mapped[str] = mapped_column(nullable=True)
+    image: Mapped[str] = mapped_column(String(200), nullable=True)
 
     comics: Mapped[List["MyComics"]] = relationship(back_populates="user")
 
