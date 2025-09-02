@@ -265,3 +265,4 @@ def get_all_myManga():
 
     return jsonify(response_body), 201
 
+
